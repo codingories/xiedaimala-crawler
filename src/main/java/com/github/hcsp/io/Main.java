@@ -12,34 +12,68 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
 import java.io.IOException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
+
+    private static List<String> loadUrlsFromDatabase(Connection connection, String sql) throws SQLException {
+        List<String> results = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                results.add(resultSet.getString(1));
+            }
+        }
+        return results;
+    }
+
+    public static void main(String[] args) throws IOException, SQLException {
+
 
         // 待处理的链接池
-        List<String> linkPool = new ArrayList<>();
-        // 已经处理的链接池子
-        Set<String> processedLinks = new HashSet<>();
-
-        linkPool.add("https://sina.cn");
+        // 从数据库加载即将处理的链接的代码
+        Connection connection = DriverManager.getConnection("jdbc:h2:file:/Users/ories/Downloads/java-zhangbo/30项目实战 - 多线程网络爬虫与Elasticsearch新闻搜索引擎/project/xiedaimala-crawler/news", "root", "root");
 
         while (true) {
+
+            List<String> linkPool = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
+
+            // 已经处理的链接池子
+            // 从数据库加载已经处理的链接的代码
+            Set<String> processedLinks = new HashSet<>(loadUrlsFromDatabase(connection, "select link from LINKS_ALREADY_PROCESSED"));
+
 
             // 如果池子是空的，跳出循环
             if (linkPool.isEmpty()) {
                 break;
             }
 
-            // 从池子中拿一个链接
-            // ArrayList从尾部删除更有效率
+            // 从待处理池子中捞一个来处理，
+            // 处理完后从池子(包括数据库)中删除
             String link = linkPool.remove(linkPool.size() - 1);
 
+            try (PreparedStatement statement = connection.prepareStatement("DELETE FROM LINKS_TO_BE_PROCESSED where link = ?")) {
+                statement.setString(1, link);
+                statement.executeUpdate();
+            }
+
+            // 询问数据库，当前链接是不是已经处理过来
+            boolean flag = false;
+            try (PreparedStatement statement = connection.prepareStatement("SELECT LINK from LINKS_ALREADY_PROCESSED where link = ?")) {
+                statement.setString(1, link);
+                ResultSet resultSet = statement.executeQuery();
+                while (resultSet.next()) {
+                    flag = true;
+                }
+            }
+
+
             // 判断链接是否处理过了
-            if (processedLinks.contains(link)) {
+            if (flag) {
                 continue;
             }
 
@@ -49,19 +83,31 @@ public class Main {
                 Document doc = httpGetAndParseHtml(link);
 
                 // map就是把一个数据变成另一个数据
-                doc.select("a").stream().map(aTag -> aTag.attr("href")).forEach(linkPool::add);
+                for (Element aTag : doc.select("a")) {
+                    String href = aTag.attr("href");
+                    try (PreparedStatement statement = connection.prepareStatement("INSERT INTO LINKS_TO_BE_PROCESSED (LINK) values (?)")) {
+                        statement.setString(1, href);
+                        statement.executeUpdate();
+                    }
+
+                }
 
                 // 如果是新闻的详情页面的就储存它,否则什么都不做
                 storeIntoDatabaseIfItIsNewPage(doc);
+
+                try (PreparedStatement statement = connection.prepareStatement("INSERT INTO LINKS_ALREADY_PROCESSED (LINK) values (?)")) {
+                    statement.setString(1, link);
+                    statement.executeUpdate();
+                }
+
                 // 将处理过的链接，加入处理过的链接池
-                processedLinks.add(link);
+//                processedLinks.add(link);
             } else {
                 // 这是我们不感兴趣的，不处理它
-                continue;
             }
-
-
         }
+
+
 
 
     }

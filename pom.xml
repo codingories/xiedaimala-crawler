@@ -32,6 +32,14 @@
                     <url>http://maven.aliyun.com/nexus/content/groups/public/</url>
                 </repository>
             </repositories>
+            <dependencies>
+                <dependency>
+                    <groupId>com.h2database</groupId>
+                    <artifactId>h2</artifactId>
+                    <version>1.4.199</version>
+                    <scope>compile</scope>
+                </dependency>
+            </dependencies>
         </profile>
         <profile>
             <id>mavenCentral</id>
