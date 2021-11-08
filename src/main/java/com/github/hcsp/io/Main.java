@@ -38,7 +38,6 @@ public class Main {
             // 从池子中拿一个链接
             // ArrayList从尾部删除更有效率
             String link = linkPool.remove(linkPool.size() - 1);
-            ;
 
             // 判断链接是否处理过了
             if (processedLinks.contains(link)) {
@@ -46,49 +45,17 @@ public class Main {
             }
 
             // 判断是否是需要处理的链接
-//            link.contains("sina.cn") && !link.contains("passport.sina.cn") &&
-            if ((link.contains("news.sina.cn")) || "https://sina.cn".equals(link)) {
+            if (isInterestingLink(link)) {
                 // 这是我们感兴趣的，我们只处理新浪站内的链接
-                try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
-                    System.out.println(link);
+                Document doc = httpGetAndParseHtml(link);
 
-                    if (link.startsWith("//")) {
-                        link = "https:" + link;
-                    }
+                // map就是把一个数据变成另一个数据
+                doc.select("a").stream().map(aTag -> aTag.attr("href")).forEach(linkPool::add);
 
-                    HttpGet httpGet = new HttpGet(link);
-                    httpGet.addHeader("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1");
-
-
-                    try (CloseableHttpResponse response1 = httpclient.execute(httpGet)) {
-                        // 获取访问的响应头
-                        System.out.println(response1.getStatusLine());
-                        HttpEntity entity1 = response1.getEntity();
-                        String html = EntityUtils.toString(entity1);
-
-                        Document doc = Jsoup.parse(html);
-
-                        doc.select("a");
-
-                        ArrayList<Element> links = doc.select("a");
-
-                        for (Element aTag : links) {
-                            linkPool.add(aTag.attr("href"));
-                        }
-                        // 如果是新闻的页面的就储存它
-                        ArrayList<Element> articleTags = doc.select("article");
-                        if (!articleTags.isEmpty()) {
-                            for (Element article : articleTags) {
-                                String title = articleTags.get(0).child(0).text();
-                                System.out.println(title);
-                            }
-                        }
-
-                        // 将处理过的链接，加入处理过的链接池
-                        processedLinks.add(link);
-
-                    }
-                }
+                // 如果是新闻的详情页面的就储存它,否则什么都不做
+                storeIntoDatabaseIfItIsNewPage(doc);
+                // 将处理过的链接，加入处理过的链接池
+                processedLinks.add(link);
             } else {
                 // 这是我们不感兴趣的，不处理它
                 continue;
@@ -98,5 +65,51 @@ public class Main {
         }
 
 
+    }
+
+    private static void storeIntoDatabaseIfItIsNewPage(Document doc) {
+        ArrayList<Element> articleTags = doc.select("article");
+        if (!articleTags.isEmpty()) {
+            for (Element article : articleTags) {
+                String title = articleTags.get(0).child(0).text();
+                System.out.println(title);
+            }
+        }
+    }
+
+    private static Document httpGetAndParseHtml(String link) {
+
+        CloseableHttpClient httpclient = HttpClients.createDefault();
+
+        if (link.startsWith("//")) {
+            link = "https:" + link;
+        }
+
+        HttpGet httpGet = new HttpGet(link);
+        httpGet.addHeader("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1");
+
+        try (CloseableHttpResponse response1 = httpclient.execute(httpGet)) {
+            // 获取访问的响应头
+            System.out.println(response1.getStatusLine());
+            HttpEntity entity1 = response1.getEntity();
+            String html = EntityUtils.toString(entity1);
+            return Jsoup.parse(html);
+        }
+    }
+
+    private static boolean isInterestingLink(String link) {
+        return (isNewsPage(link) || isIndexPage(link)) && isNotLoginPage(link);
+    }
+
+    private static boolean isIndexPage(String link) {
+        return "https://sina.cn".equals(link);
+    }
+
+    private static boolean isNewsPage(String link) {
+        return link.contains("news.sina.cn");
+    }
+
+    private static boolean isNotLoginPage(String link) {
+        return !link.contains("passport.sina.cn");
     }
 }
