@@ -145,6 +145,17 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <version>5.2.4</version>
+                <configuration>
+                    <url>jdbc:h2:file:/Users/ories/Downloads/java-zhangbo/30项目实战 - 多线程网络爬虫与Elasticsearch新闻搜索引擎/project/xiedaimala-crawler/news</url>
+                    <user>root</user>
+                    <password>root</password>
+                </configuration>
+            </plugin>
+
         </plugins>
     </build>
 </project>

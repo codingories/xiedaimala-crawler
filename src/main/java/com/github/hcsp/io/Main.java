@@ -19,20 +19,33 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.stream.Collectors;
 
 public class Main {
     public static final String USER_NAME = "root";
     public static final String PASSWORD = "root";
 
-    private static List<String> loadUrlsFromDatabase(Connection connection, String sql) throws SQLException {
-        List<String> results = new ArrayList<>();
-        try (PreparedStatement statement = connection.prepareStatement(sql); ResultSet resultSet = statement.executeQuery()) {
+    private static String getNextLink(Connection connection, String sql) throws SQLException {
+        ResultSet resultSet = null;
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            resultSet = statement.executeQuery();
             while (resultSet.next()) {
-                results.add(resultSet.getString(1));
+                return resultSet.getString(1);
+            }
+        } finally {
+            if (resultSet != null) {
+                resultSet.close();
             }
         }
-        return results;
+        return null;
+    }
+
+    private static String getNextLinkThenDelete(Connection connection) throws SQLException {
+        String link = getNextLink(connection, "select link from LINKS_TO_BE_PROCESSED LIMIT 1");
+        if (link != null) {
+            updateDatabase(connection, link, "DELETE FROM LINKS_TO_BE_PROCESSED where link = ?");
+        }
+        return link;
     }
 
 
@@ -44,42 +57,22 @@ public class Main {
         // 从数据库加载即将处理的链接的代码
         Connection connection = DriverManager.getConnection("jdbc:h2:file:/Users/ories/Downloads/java-zhangbo/30项目实战 - 多线程网络爬虫与Elasticsearch新闻搜索引擎/project/xiedaimala-crawler/news", USER_NAME, PASSWORD);
 
-        while (true) {
+        String link;
 
-            List<String> linkPool = loadUrlsFromDatabase(connection, "select link from LINKS_TO_BE_PROCESSED");
-
-            // 已经处理的链接池子
-            // 从数据库加载已经处理的链接的代码
-
-
-            // 如果池子是空的，跳出循环
-            if (linkPool.isEmpty()) {
-                break;
-            }
-
-            // 从待处理池子中捞一个来处理，
-            // 处理完后从池子(包括数据库)中删除
-            String link = linkPool.remove(linkPool.size() - 1);
-
-            insertLinkIntoDatabase(connection, link, "DELETE FROM LINKS_TO_BE_PROCESSED where link = ?");
-
+        // 从数据库中加载下一个链接，如果能加载到，则进行循环
+        while ((link = getNextLinkThenDelete(connection)) != null) {
             // 询问数据库，当前链接是不是已经处理过来
-            // 判断链接是否处理过了
-            if (!isLinkProcessed(connection, link)) {
+            if (isLinkProcessed(connection, link)) {
                 continue;
             }
-
             // 判断是否是需要处理的链接
             if (isInterestingLink(link)) {
+                System.out.println(link);
                 Document doc = httpGetAndParseHtml(link);
-
                 parseUrlsFromPageAndStoreIntoDatabase(connection, doc);
-
                 // 如果是新闻的详情页面的就储存它,否则什么都不做
-                storeIntoDatabaseIfItIsNewPage(doc);
-
-                insertLinkIntoDatabase(connection, link, "INSERT INTO LINKS_ALREADY_PROCESSED (LINK) values (?)");
-
+                storeIntoDatabaseIfItIsNewPage(connection, doc, link);
+                updateDatabase(connection, link, "INSERT INTO LINKS_ALREADY_PROCESSED (LINK) values (?)");
                 // 将处理过的链接，加入处理过的链接池
             }
         }
@@ -90,7 +83,15 @@ public class Main {
     private static void parseUrlsFromPageAndStoreIntoDatabase(Connection connection, Document doc) throws SQLException {
         for (Element aTag : doc.select("a")) {
             String href = aTag.attr("href");
-            insertLinkIntoDatabase(connection, href, "INSERT INTO LINKS_TO_BE_PROCESSED (LINK) values (?)");
+
+            if (href.startsWith("//")) {
+                href = "https:" + href;
+            }
+
+            if (!href.toLowerCase().startsWith("javascript")) {
+                updateDatabase(connection, href, "INSERT INTO LINKS_TO_BE_PROCESSED (LINK) values (?)");
+            }
+
         }
     }
 
@@ -110,19 +111,27 @@ public class Main {
         return false;
     }
 
-    private static void insertLinkIntoDatabase(Connection connection, String link, String sql) throws SQLException {
+    private static void updateDatabase(Connection connection, String link, String sql) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, link);
             statement.executeUpdate();
         }
     }
 
-    private static void storeIntoDatabaseIfItIsNewPage(Document doc) {
+    private static void storeIntoDatabaseIfItIsNewPage(Connection connection, Document doc, String link) throws SQLException {
         ArrayList<Element> articleTags = doc.select("article");
         if (!articleTags.isEmpty()) {
-            for (Element article : articleTags) {
+            for (Element articleTag : articleTags) {
                 String title = articleTags.get(0).child(0).text();
+                String content = articleTag.select("p").stream().map(Element::text).collect(Collectors.joining("\n"));
+
                 System.out.println(title);
+                try (PreparedStatement statement = connection.prepareStatement("insert into news (url, title, content, CREATED_AT, MODIFIED_AT) values ( ?,?,?,now(),now() )")) {
+                    statement.setString(1, link);
+                    statement.setString(2, title);
+                    statement.setString(3, content);
+                    statement.executeUpdate();
+                }
             }
         }
     }
@@ -141,7 +150,6 @@ public class Main {
 
         try (CloseableHttpResponse response1 = httpclient.execute(httpGet)) {
             // 获取访问的响应头
-            System.out.println(response1.getStatusLine());
             HttpEntity entity1 = response1.getEntity();
             String html = EntityUtils.toString(entity1);
             return Jsoup.parse(html);
