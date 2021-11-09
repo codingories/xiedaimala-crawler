@@ -1,6 +1,7 @@
 package com.github.hcsp.io;
 
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -12,18 +13,21 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
 import java.io.IOException;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class Main {
+    public static final String USER_NAME = "root";
+    public static final String PASSWORD = "root";
 
     private static List<String> loadUrlsFromDatabase(Connection connection, String sql) throws SQLException {
         List<String> results = new ArrayList<>();
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            ResultSet resultSet = statement.executeQuery();
+        try (PreparedStatement statement = connection.prepareStatement(sql); ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
                 results.add(resultSet.getString(1));
             }
@@ -31,12 +35,14 @@ public class Main {
         return results;
     }
 
+
+    @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
     public static void main(String[] args) throws IOException, SQLException {
 
 
         // 待处理的链接池
         // 从数据库加载即将处理的链接的代码
-        Connection connection = DriverManager.getConnection("jdbc:h2:file:/Users/ories/Downloads/java-zhangbo/30项目实战 - 多线程网络爬虫与Elasticsearch新闻搜索引擎/project/xiedaimala-crawler/news", "root", "root");
+        Connection connection = DriverManager.getConnection("jdbc:h2:file:/Users/ories/Downloads/java-zhangbo/30项目实战 - 多线程网络爬虫与Elasticsearch新闻搜索引擎/project/xiedaimala-crawler/news", USER_NAME, PASSWORD);
 
         while (true) {
 
@@ -44,7 +50,6 @@ public class Main {
 
             // 已经处理的链接池子
             // 从数据库加载已经处理的链接的代码
-            Set<String> processedLinks = new HashSet<>(loadUrlsFromDatabase(connection, "select link from LINKS_ALREADY_PROCESSED"));
 
 
             // 如果池子是空的，跳出循环
@@ -56,60 +61,60 @@ public class Main {
             // 处理完后从池子(包括数据库)中删除
             String link = linkPool.remove(linkPool.size() - 1);
 
-            try (PreparedStatement statement = connection.prepareStatement("DELETE FROM LINKS_TO_BE_PROCESSED where link = ?")) {
-                statement.setString(1, link);
-                statement.executeUpdate();
-            }
+            insertLinkIntoDatabase(connection, link, "DELETE FROM LINKS_TO_BE_PROCESSED where link = ?");
 
             // 询问数据库，当前链接是不是已经处理过来
-            boolean flag = false;
-            try (PreparedStatement statement = connection.prepareStatement("SELECT LINK from LINKS_ALREADY_PROCESSED where link = ?")) {
-                statement.setString(1, link);
-                ResultSet resultSet = statement.executeQuery();
-                while (resultSet.next()) {
-                    flag = true;
-                }
-            }
-
-
             // 判断链接是否处理过了
-            if (flag) {
+            if (!isLinkProcessed(connection, link)) {
                 continue;
             }
 
             // 判断是否是需要处理的链接
             if (isInterestingLink(link)) {
-                // 这是我们感兴趣的，我们只处理新浪站内的链接
                 Document doc = httpGetAndParseHtml(link);
 
-                // map就是把一个数据变成另一个数据
-                for (Element aTag : doc.select("a")) {
-                    String href = aTag.attr("href");
-                    try (PreparedStatement statement = connection.prepareStatement("INSERT INTO LINKS_TO_BE_PROCESSED (LINK) values (?)")) {
-                        statement.setString(1, href);
-                        statement.executeUpdate();
-                    }
-
-                }
+                parseUrlsFromPageAndStoreIntoDatabase(connection, doc);
 
                 // 如果是新闻的详情页面的就储存它,否则什么都不做
                 storeIntoDatabaseIfItIsNewPage(doc);
 
-                try (PreparedStatement statement = connection.prepareStatement("INSERT INTO LINKS_ALREADY_PROCESSED (LINK) values (?)")) {
-                    statement.setString(1, link);
-                    statement.executeUpdate();
-                }
+                insertLinkIntoDatabase(connection, link, "INSERT INTO LINKS_ALREADY_PROCESSED (LINK) values (?)");
 
                 // 将处理过的链接，加入处理过的链接池
-//                processedLinks.add(link);
-            } else {
-                // 这是我们不感兴趣的，不处理它
             }
         }
 
 
+    }
 
+    private static void parseUrlsFromPageAndStoreIntoDatabase(Connection connection, Document doc) throws SQLException {
+        for (Element aTag : doc.select("a")) {
+            String href = aTag.attr("href");
+            insertLinkIntoDatabase(connection, href, "INSERT INTO LINKS_TO_BE_PROCESSED (LINK) values (?)");
+        }
+    }
 
+    private static boolean isLinkProcessed(Connection connection, String link) throws SQLException {
+        ResultSet resultSet = null;
+        try (PreparedStatement statement = connection.prepareStatement("SELECT LINK from LINKS_ALREADY_PROCESSED where link = ?")) {
+            statement.setString(1, link);
+            resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                return true;
+            }
+        } finally {
+            if (resultSet != null) {
+                resultSet.close();
+            }
+        }
+        return false;
+    }
+
+    private static void insertLinkIntoDatabase(Connection connection, String link, String sql) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, link);
+            statement.executeUpdate();
+        }
     }
 
     private static void storeIntoDatabaseIfItIsNewPage(Document doc) {
@@ -122,6 +127,7 @@ public class Main {
         }
     }
 
+    // 这是我们感兴趣的，我们只处理新浪站内的链接
     private static Document httpGetAndParseHtml(String link) throws IOException {
 
         CloseableHttpClient httpclient = HttpClients.createDefault();
@@ -142,6 +148,7 @@ public class Main {
         }
     }
 
+    // 我们只关心news.sina的，我们要排除登录页面
     private static boolean isInterestingLink(String link) {
         return (isNewsPage(link) || isIndexPage(link)) && isNotLoginPage(link);
     }
