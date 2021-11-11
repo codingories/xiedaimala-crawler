@@ -1,4 +1,4 @@
-package com.github.hcsp.io;
+package com.github.hcsp;
 
 
 import org.apache.http.HttpEntity;
@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 public class Crawler {
 
 
-    private CrawlerDao dao = new JdbcCrawlerDao();
+    private CrawlerDao dao = new MyBatisCrawlerDao();
 
     public void run() throws SQLException, IOException {
         // 待处理的链接池
@@ -40,12 +40,11 @@ public class Crawler {
                 parseUrlsFromPageAndStoreIntoDatabase(doc);
                 // 如果是新闻的详情页面的就储存它,否则什么都不做
                 storeIntoDatabaseIfItIsNewPage(doc, link);
-                dao.updateDatabase(link, "INSERT INTO LINKS_ALREADY_PROCESSED (LINK) values (?)");
-                // 将处理过的链接，加入处理过的链接池
+
+                dao.insertProcessedLink(link);
             }
         }
     }
-
 
 
     public static void main(String[] args) throws IOException, SQLException {
@@ -61,13 +60,11 @@ public class Crawler {
             }
 
             if (!href.toLowerCase().startsWith("javascript")) {
-                dao.updateDatabase(href, "INSERT INTO LINKS_TO_BE_PROCESSED (LINK) values (?)");
+                dao.insertLinkToBeProcessed(href);
             }
 
         }
     }
-
-
 
 
     private void storeIntoDatabaseIfItIsNewPage(Document doc, String link) throws SQLException {
