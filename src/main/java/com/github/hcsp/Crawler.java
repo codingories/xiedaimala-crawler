@@ -17,8 +17,6 @@ import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 public class Crawler {
-
-
     private CrawlerDao dao = new MyBatisCrawlerDao();
 
     public void run() throws SQLException, IOException {
@@ -26,7 +24,6 @@ public class Crawler {
         // 从数据库加载即将处理的链接的代码
 
         String link;
-
         // 从数据库中加载下一个链接，如果能加载到，则进行循环
         while ((link = dao.getNextLinkThenDelete()) != null) {
             // 询问数据库，当前链接是不是已经处理过来

@@ -39,6 +39,11 @@
                     <version>1.4.199</version>
                     <scope>compile</scope>
                 </dependency>
+                <dependency>
+                    <groupId>mysql</groupId>
+                    <artifactId>mysql-connector-java</artifactId>
+                    <version>8.0.17</version>
+                </dependency>
             </dependencies>
         </profile>
         <profile>
@@ -155,7 +160,7 @@
                 <artifactId>flyway-maven-plugin</artifactId>
                 <version>5.2.4</version>
                 <configuration>
-                    <url>jdbc:h2:file:/Users/ories/Downloads/java-zhangbo/30项目实战 - 多线程网络爬虫与Elasticsearch新闻搜索引擎/project/xiedaimala-crawler/news</url>
+                    <url>jdbc:mysql://localhost:3306/news</url>
                     <user>root</user>
                     <password>root</password>
                 </configuration>

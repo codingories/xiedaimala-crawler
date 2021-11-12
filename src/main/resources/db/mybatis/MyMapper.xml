@@ -35,6 +35,6 @@
             </otherwise>
         </choose>
         (link)
-        values #{link}
+        values (#{link})
     </insert>
 </mapper>
