@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 public class Crawler {
-    private CrawlerDao dao = new MyBatisCrawlerDao();
+    private CrawlerDao dao = new  MyBatisCrawlerDao();
 
     public void run() throws SQLException, IOException {
         // 待处理的链接池
