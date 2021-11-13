@@ -26,8 +26,10 @@ public class MyBatisCrawlerDao implements CrawlerDao {
     }
 
 
+
     @Override
-    public String getNextLinkThenDelete() throws SQLException {
+    public synchronized String getNextLinkThenDelete() throws SQLException {
+        // 先取值再根据值去做处理，在多线程环境中非常危险，两个线程可能同时在执行这段代码
         try (SqlSession session = sqlSessionFactory.openSession(true)) {
             String url = session.selectOne("com.github.hcsp.MyMapper.selectNextAvailableLink");
             if (url != null) {

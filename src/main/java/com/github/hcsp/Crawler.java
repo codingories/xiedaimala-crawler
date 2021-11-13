@@ -16,37 +16,48 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
-public class Crawler {
-    private CrawlerDao dao = new  MyBatisCrawlerDao();
+public class Crawler extends Thread {
+    private CrawlerDao dao;
+//     = new MyBatisCrawlerDao();
 
-    public void run() throws SQLException, IOException {
+//    public void run() {
+//        if (target != null) {
+
+    public Crawler(CrawlerDao dao) {
+        this.dao = dao;
+    }
+//            target.run();
+//        }
+//    }
+
+    @Override
+    public void run() {
         // 待处理的链接池
         // 从数据库加载即将处理的链接的代码
+        try {
+            String link;
+            // 从数据库中加载下一个链接，如果能加载到，则进行循环
+            while ((link = dao.getNextLinkThenDelete()) != null) {
+                // 询问数据库，当前链接是不是已经处理过来
+                if (dao.isLinkProcessed(link)) {
+                    continue;
+                }
+                // 判断是否是需要处理的链接
+                if (isInterestingLink(link)) {
+                    System.out.println(link);
+                    Document doc = httpGetAndParseHtml(link);
+                    parseUrlsFromPageAndStoreIntoDatabase(doc);
+                    // 如果是新闻的详情页面的就储存它,否则什么都不做
+                    storeIntoDatabaseIfItIsNewPage(doc, link);
 
-        String link;
-        // 从数据库中加载下一个链接，如果能加载到，则进行循环
-        while ((link = dao.getNextLinkThenDelete()) != null) {
-            // 询问数据库，当前链接是不是已经处理过来
-            if (dao.isLinkProcessed(link)) {
-                continue;
+                    dao.insertProcessedLink(link);
+                }
             }
-            // 判断是否是需要处理的链接
-            if (isInterestingLink(link)) {
-                System.out.println(link);
-                Document doc = httpGetAndParseHtml(link);
-                parseUrlsFromPageAndStoreIntoDatabase(doc);
-                // 如果是新闻的详情页面的就储存它,否则什么都不做
-                storeIntoDatabaseIfItIsNewPage(doc, link);
-
-                dao.insertProcessedLink(link);
-            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
-
-    public static void main(String[] args) throws IOException, SQLException {
-        new Crawler().run();
-    }
 
     private void parseUrlsFromPageAndStoreIntoDatabase(Document doc) throws SQLException {
         for (Element aTag : doc.select("a")) {
