@@ -6,7 +6,7 @@ create table NEWS
     url         varchar(1000),
     created_at  timestamp default now(),
     modified_at timestamp default now()
-);
+) DEFAULT CHARSET=utfmb4;
 create Table LINKS_TO_BE_PROCESSED
 (
     link varchar(1000)

@@ -2,39 +2,14 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.github.hcsp.MyMapper">
-    <select id="selectNextAvailableLink" resultType="String">
-        select link
-        from LINKS_TO_BE_PROCESSED
-        LIMIT 1
-    </select>
-    <delete
-            id="deleteLink"
-            parameterType="String">
-        DELETE
-        FROM LINKS_TO_BE_PROCESSED
-        where link = #{link}
-    </delete>
+<mapper namespace="com.github.hcsp.MockMapper">
     <insert id="insertNews" parameterType="com.github.hcsp.News">
         insert into NEWS (url, title, content, CREATED_AT, MODIFIED_AT)
-        values (#{url}, #{title}, #{content}, now(), now())
+        values (#{url}, #{title}, #{content}, #{createdAt}, #{modifiedAt})
     </insert>
-    <select id="countLink" resultType="int">
-        select count(link)
-        from LINKS_TO_BE_PROCESSED
-        where link = #{link}
+    <select id="selectNews" resultType="com.github.hcsp.News">
+        select id, url, title, content, CREATED_AT,MODIFIED_AT
+        from NEWS
+        limit 2000
     </select>
-    <insert id="insertLink" parameterType="HashMap">
-        insert into
-        <choose>
-            <when test="tableName == 'links_already_processed'">
-                LINKS_ALREADY_PROCESSED
-            </when>
-            <otherwise>
-                LINKS_TO_BE_PROCESSED
-            </otherwise>
-        </choose>
-        (link)
-        values (#{link})
-    </insert>
 </mapper>
