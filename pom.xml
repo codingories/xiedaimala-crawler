@@ -39,6 +39,11 @@
                     <version>1.4.199</version>
                     <scope>compile</scope>
                 </dependency>
+                <dependency>
+                    <groupId>mysql</groupId>
+                    <artifactId>mysql-connector-java</artifactId>
+                    <version>8.0.17</version>
+                </dependency>
             </dependencies>
         </profile>
         <profile>
@@ -86,6 +91,16 @@
             <groupId>com.google.code.findbugs</groupId>
             <artifactId>annotations</artifactId>
             <version>3.0.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis</artifactId>
+            <version>3.5.7</version>
+        </dependency>
+        <dependency>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-high-level-client</artifactId>
+            <version>7.4.0</version>
         </dependency>
     </dependencies>
 
@@ -145,6 +160,17 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <version>5.2.4</version>
+                <configuration>
+                    <url>jdbc:mysql://localhost:3306/news?characterEncoding=UTF-8</url>
+                    <user>root</user>
+                    <password>root</password>
+                </configuration>
+            </plugin>
+
         </plugins>
     </build>
 </project>
