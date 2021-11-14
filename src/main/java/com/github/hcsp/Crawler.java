@@ -1,6 +1,7 @@
 package com.github.hcsp;
 
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -16,20 +17,12 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
+@SuppressFBWarnings("EI_EXPOSE_REP2")
 public class Crawler extends Thread {
     private CrawlerDao dao;
-//     = new MyBatisCrawlerDao();
-
-//    public void run() {
-//        if (target != null) {
-
     public Crawler(CrawlerDao dao) {
         this.dao = dao;
     }
-//            target.run();
-//        }
-//    }
-
     @Override
     public void run() {
         // 待处理的链接池

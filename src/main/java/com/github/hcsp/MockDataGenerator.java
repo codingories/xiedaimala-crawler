@@ -1,5 +1,6 @@
 package com.github.hcsp;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.ibatis.io.Resources;
 import org.apache.ibatis.session.ExecutorType;
 import org.apache.ibatis.session.SqlSession;
@@ -12,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 
+@SuppressFBWarnings("DMI_RANDOM_USED_ONLY_ONCE")
 public class MockDataGenerator {
     private static void mockData(SqlSessionFactory sqlSessionFactory, int howMany) {
         try (SqlSession session = sqlSessionFactory.openSession(ExecutorType.BATCH)) {
